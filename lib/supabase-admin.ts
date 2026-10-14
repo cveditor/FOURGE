@@ -1,8 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 
-let cachedClient: ReturnType<typeof createClient> | null = null
+function createAdminClient(url: string, secret: string) {
+  return createClient(url, secret, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  })
+}
 
-export function getSupabaseAdmin() {
+type AdminClient = ReturnType<typeof createAdminClient>
+let cachedClient: AdminClient | null = null
+
+export function getSupabaseAdmin(): AdminClient {
   if (cachedClient) return cachedClient
 
   const url = process.env.SUPABASE_URL
@@ -12,13 +23,6 @@ export function getSupabaseAdmin() {
     throw new Error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY')
   }
 
-  cachedClient = createClient(url, secret, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-  })
-
+  cachedClient = createAdminClient(url, secret)
   return cachedClient
 }
