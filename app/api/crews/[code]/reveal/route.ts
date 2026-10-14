@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { creatorTokenForCrew, hashPrivateToken } from '@/lib/tokens'
 import { percentileAgainst, scoreCombination, type OptionWeightRow } from '@/lib/fourge-score'
+import { getEndingLongDescription } from '@/lib/ending-copy'
 
 export const runtime = 'nodejs'
 
@@ -92,12 +93,12 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
       .from('fourge_generated_cards')
       .select('status, output_path')
       .eq('attempt_id', attempt.id)
-      .eq('preset_version', 'ai-wildcard-v0-prelaunch1')
+      .eq('preset_version', 'ai-wildcard-v0-prelaunch2')
       .maybeSingle()
     if (generatedScene) {
       aiCard.status = generatedScene.status
       if (generatedScene.status === 'ready' && generatedScene.output_path) {
-        const storyPath = `${crew.id}/${attempt.id}/wild-card-story-prelaunch1.png`
+        const storyPath = `${crew.id}/${attempt.id}/wild-card-story-prelaunch2.png`
         const [{ data: signedMaster }, { data: signedStory }] = await Promise.all([
           supabase.storage.from('fourge-generated-scenes').createSignedUrl(generatedScene.output_path, 60 * 60),
           supabase.storage.from('fourge-generated-scenes').createSignedUrl(storyPath, 60 * 60),
@@ -114,7 +115,7 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
       drop: { sequence: drop?.sequence_no || 1, title: drop?.title || 'THE HEIST' },
       ending: {
         code: ending.code, name: ending.name_en, rarity: ending.rarity, rarityLabel: rarityLabel(ending.rarity),
-        description: isIt ? (endingMap?.story_it || ending.description_it || ending.description_en) : (endingMap?.story_en || ending.description_en), theoreticalCount: ending.theoretical_count,
+        description: getEndingLongDescription(ending.code, isIt ? 'it-IT' : 'en-US'), theoreticalCount: ending.theoretical_count,
         probability: formatPercent(endingProbabilityValue), rarerThan: formatPercent(endingRarerThan), displayOrder: ending.display_order,
         isSecret: ending.is_secret, presetKey: ending.card_preset_key,
       },

@@ -195,7 +195,6 @@ export function buildCompositionGuideSvg(endingCode: string, width = 1088, heigh
     return `<g opacity="0.9">
       <circle cx="${cx}" cy="${top - headR * .9}" r="${headR}" fill="#f2f2f2"/>
       <rect x="${cx - bodyW / 2}" y="${top}" width="${bodyW}" height="${bodyH}" rx="${bodyW / 2}" fill="#d9d9d9"/>
-      <text x="${cx}" y="${baseY + 48 * scaleY}" text-anchor="middle" font-family="Arial" font-weight="700" font-size="${26 * scaleX}" fill="#ffffff">${index + 1}</text>
     </g>`
   }).join('')
   const groundY = 825 * scaleY
@@ -204,7 +203,6 @@ export function buildCompositionGuideSvg(endingCode: string, width = 1088, heigh
     <rect x="${64 * scaleX}" y="${90 * scaleY}" width="${width - 128 * scaleX}" height="${height - 190 * scaleY}" rx="24" fill="none" stroke="#62626a" stroke-width="3" stroke-dasharray="12 12"/>
     <line x1="${90 * scaleX}" y1="${groundY}" x2="${width - 90 * scaleX}" y2="${groundY}" stroke="#9a6bff" stroke-width="5"/>
     ${items}
-    <text x="${width / 2}" y="${1100 * scaleY}" text-anchor="middle" font-family="Arial" font-size="${28 * scaleX}" font-weight="700" fill="#9a6bff">COMPOSITION GUIDE ONLY · SAME GROUND PLANE</text>
   </svg>`)
 }
 

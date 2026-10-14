@@ -9,13 +9,15 @@ import {
   getEndingTagline,
   getEndingVisualPreset,
 } from '@/lib/wildcard-scene-prompt'
+import { masterGraphicsSvg, renderMasterTextSvg } from '@/lib/wildcard-overlay'
+import { getEndingShortDescription } from '@/lib/ending-copy'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
 const PHOTO_BUCKET = 'fourge-player-photos'
 const OUTPUT_BUCKET = 'fourge-generated-scenes'
-const PRESET_VERSION = 'ai-wildcard-v0-prelaunch1'
+const PRESET_VERSION = 'ai-wildcard-v0-prelaunch2'
 const ROLE_ORDER = ['architect', 'driver', 'diplomat', 'maverick'] as const
 
 // OpenAI renders the AI source in a supported portrait size.
@@ -30,9 +32,9 @@ const MASTER_HEIGHT = 1360
 const STORY_WIDTH = 1152
 const STORY_HEIGHT = 2048
 
-const MASTER_CARD_NAME = 'wild-card-master-prelaunch1.png'
-const STORY_CARD_NAME = 'wild-card-story-prelaunch1.png'
-const RAW_SCENE_NAME = 'wild-card-scene-prelaunch1.png'
+const MASTER_CARD_NAME = 'wild-card-master-prelaunch2.png'
+const STORY_CARD_NAME = 'wild-card-story-prelaunch2.png'
+const RAW_SCENE_NAME = 'wild-card-scene-prelaunch2.png'
 
 type PlayerRow = {
   id: string
@@ -42,96 +44,10 @@ type PlayerRow = {
   token_hash: string
 }
 
-function escapeXml(value: string) {
-  return value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char] || char))
-}
-
-function asciiText(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/[^\x20-\x7E]/g, '')
-}
-
 function chanceFromCount(count: number) {
   const value = (Number(count || 0) / 256) * 100
   if (value < 10) return `${value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`
   return `${value.toFixed(1).replace(/\.0$/, '')}%`
-}
-
-function rarityColor(rarity: string) {
-  if (rarity === 'rare') return '#5EA1FF'
-  if (rarity === 'epic') return '#A66BFF'
-  if (rarity === 'legendary') return '#E8BF59'
-  if (rarity === 'secret') return '#F2F3FF'
-  return '#A9B0B7'
-}
-
-function titleLines(title: string) {
-  const clean = asciiText(title).toUpperCase()
-  const words = clean.split(/\s+/).filter(Boolean)
-  if (clean.length <= 17 || words.length === 1) return [clean]
-  let first = ''
-  let second = ''
-  for (const word of words) {
-    if (!second && `${first} ${word}`.trim().length <= 17) first = `${first} ${word}`.trim()
-    else second = `${second} ${word}`.trim()
-  }
-  return second ? [first, second] : [first]
-}
-
-function wrapTagline(value: string, max = 49) {
-  const words = asciiText(value).split(/\s+/).filter(Boolean)
-  const lines: string[] = []
-  let current = ''
-  for (const word of words) {
-    const candidate = `${current} ${word}`.trim()
-    if (candidate.length > max && current) { lines.push(current); current = word }
-    else current = candidate
-  }
-  if (current) lines.push(current)
-  return lines.slice(0, 2)
-}
-
-function masterOverlaySvg(endingCode: string, endingName: string, rarity: string, chance: string) {
-  const color = rarityColor(rarity)
-  const title = titleLines(endingName)
-  const tagline = wrapTagline(getEndingTagline(endingCode))
-  const titleFont = title.length > 1 ? 68 : endingName.length > 18 ? 70 : 84
-  const titleStart = title.length > 1 ? 1075 : 1120
-  const titleLine2 = title[1] ? `<text x="64" y="${titleStart + 72}" class="title">${escapeXml(title[1])}</text>` : ''
-  const chanceY = title.length > 1 ? 1205 : 1192
-  const taglineStart = title.length > 1 ? 1252 : 1242
-  const taglineSecond = tagline[1] ? `<text x="64" y="${taglineStart + 26}" class="tagline">${escapeXml(tagline[1])}</text>` : ''
-
-  return Buffer.from(`
-  <svg width="${MASTER_WIDTH}" height="${MASTER_HEIGHT}" viewBox="0 0 ${MASTER_WIDTH} ${MASTER_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="topShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#040308" stop-opacity="0.78"/><stop offset="1" stop-color="#040308" stop-opacity="0"/></linearGradient>
-      <linearGradient id="bottomShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050409" stop-opacity="0"/><stop offset="0.28" stop-color="#050409" stop-opacity="0.32"/><stop offset="1" stop-color="#050409" stop-opacity="0.97"/></linearGradient>
-      <filter id="titleShadow" x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dy="5"/><feComponentTransfer><feFuncA type="linear" slope="0.7"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      <style>
-        .brand{font-family:sans-serif;font-size:29px;font-weight:800;letter-spacing:7px;fill:#ffffff}
-        .meta{font-family:sans-serif;font-size:14px;font-weight:700;letter-spacing:4px;fill:#d9d4df}
-        .rarity{font-family:sans-serif;font-size:17px;font-weight:800;letter-spacing:4px;fill:${color}}
-        .title{font-family:sans-serif;font-size:${titleFont}px;font-weight:800;letter-spacing:-2px;fill:#ffffff}
-        .chance{font-family:sans-serif;font-size:25px;font-weight:800;letter-spacing:1.5px;fill:#ffffff}
-        .tagline{font-family:sans-serif;font-size:21px;font-weight:500;fill:#d9d4df}
-        .micro{font-family:sans-serif;font-size:12px;font-weight:700;letter-spacing:2.4px;fill:#a7a1ae}
-      </style>
-    </defs>
-    <rect width="${MASTER_WIDTH}" height="320" fill="url(#topShade)"/>
-    <rect y="735" width="${MASTER_WIDTH}" height="625" fill="url(#bottomShade)"/>
-    <rect x="10" y="10" width="${MASTER_WIDTH - 20}" height="${MASTER_HEIGHT - 20}" rx="18" fill="none" stroke="${color}" stroke-width="8"/>
-    <g text-anchor="middle"><text x="${MASTER_WIDTH / 2}" y="66" class="brand">FOURGE.</text><text x="${MASTER_WIDTH / 2}" y="96" class="meta">DROP #01 - THE HEIST</text></g>
-    <g transform="translate(64,985)"><rect width="230" height="46" rx="23" fill="#07060B" fill-opacity="0.82" stroke="${color}" stroke-opacity="0.8"/><circle cx="25" cy="23" r="5.5" fill="${color}"/><text x="45" y="30" class="rarity">${escapeXml(asciiText(rarity.toUpperCase()))}</text></g>
-    <g filter="url(#titleShadow)"><text x="64" y="${titleStart}" class="title">${escapeXml(title[0])}</text>${titleLine2}</g>
-    <text x="64" y="${chanceY}" class="chance">ONLY ${escapeXml(chance)} CHANCE</text>
-    <text x="64" y="${taglineStart}" class="tagline">${escapeXml(tagline[0] || '')}</text>${taglineSecond}
-    <text x="64" y="1325" class="micro">FOURGE-GAME.COM</text>
-  </svg>` )
 }
 
 function storyBackdropSvg() {
@@ -336,8 +252,21 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       .png()
       .toBuffer()
 
+    const [graphicsOverlay, textOverlay] = await Promise.all([
+      Promise.resolve(masterGraphicsSvg(ending.rarity)),
+      renderMasterTextSvg({
+        endingName: ending.name_en,
+        rarity: ending.rarity,
+        chance: chanceFromCount(ending.theoretical_count),
+        tagline: getEndingShortDescription(ending.code) || getEndingTagline(ending.code),
+      }),
+    ])
+
     const masterCard = await sharp(normalizedScene)
-      .composite([{ input: masterOverlaySvg(ending.code, ending.name_en, ending.rarity, chanceFromCount(ending.theoretical_count)), top: 0, left: 0 }])
+      .composite([
+        { input: graphicsOverlay, top: 0, left: 0 },
+        { input: textOverlay, top: 0, left: 0 },
+      ])
       .png()
       .toBuffer()
 
@@ -366,7 +295,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
 
     const preset = getEndingVisualPreset(ending.code)
     await supabase.from('fourge_analytics_events').insert({
-      event_name: 'ai_wildcard_prelaunch_generated',
+      event_name: 'ai_wildcard_prelaunch2_generated',
       crew_id: crew.id,
       attempt_id: attempt.id,
       properties: {
