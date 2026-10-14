@@ -92,12 +92,12 @@ export async function GET(request: Request, context: { params: Promise<{ code: s
       .from('fourge_generated_cards')
       .select('status, output_path')
       .eq('attempt_id', attempt.id)
-      .eq('preset_version', 'ai-wildcard-v0-final')
+      .eq('preset_version', 'ai-wildcard-v0-prelaunch1')
       .maybeSingle()
     if (generatedScene) {
       aiCard.status = generatedScene.status
       if (generatedScene.status === 'ready' && generatedScene.output_path) {
-        const storyPath = `${crew.id}/${attempt.id}/wild-card-story-v0.png`
+        const storyPath = `${crew.id}/${attempt.id}/wild-card-story-prelaunch1.png`
         const [{ data: signedMaster }, { data: signedStory }] = await Promise.all([
           supabase.storage.from('fourge-generated-scenes').createSignedUrl(generatedScene.output_path, 60 * 60),
           supabase.storage.from('fourge-generated-scenes').createSignedUrl(storyPath, 60 * 60),

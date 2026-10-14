@@ -27,28 +27,30 @@ type RevealData = {
 
 const COPY = {
   'it-IT': {
-    loading: 'CALCOLO DEL FINALE…', kicker: '4 MOSSE SEGRETE · 1 SOLO FINALE',
-    title: <>IL COLPO<br /><em>È FINITO.</em></>,
-    intro: 'Le quattro decisioni sono state combinate. Il finale è pronto e nessuna scelta individuale verrà mostrata.',
-    reveal: 'RIVELA IL FINALE', hidden: 'IL RISULTATO DIVENTA UNA WILD CARD AI DA CONDIVIDERE',
-    creating: 'STIAMO CREANDO LA VOSTRA WILD CARD…', creatingBody: 'FOURGE sta trasformando le quattro foto e il vostro finale in un poster cinematografico.',
+    loading: 'CALCOLO DEL FINALE...',
+    outcomeEyebrow: 'IL FINALE DELLA VOSTRA CREW',
+    outcomeIntro: 'Le quattro scelte segrete sono state combinate. Questo è ciò che è successo al vostro colpo.',
+    chanceLabel: 'SOLO', chanceSuffix: 'DI POSSIBILITA', chanceExplain: 'delle 256 combinazioni possibili porta a questo finale.',
+    sharedResult: 'Questo risultato appartiene a tutti e quattro i membri della crew.',
+    creating: 'STIAMO CREANDO LA VOSTRA WILD CARD...', creatingBody: 'Una sola Wild Card viene generata per tutta la crew. Appena è pronta comparirà qui per tutti.',
     failed: 'La Wild Card AI non è stata generata.', retry: 'RIPROVA',
-    score: 'FOURGE SCORE', rarer: 'PIÙ RARA DEL', routes: 'ROUTE CHE PORTANO QUI', outcome: 'ESITO DEL COLPO',
     share: 'CONDIVIDI NELLE STORIE', save: 'SALVA WILD CARD', regenerate: 'RIGENERA IMMAGINE', challenge: 'SFIDA UN’ALTRA CREW',
     shareFallback: 'Il browser non supporta la condivisione diretta del file: la Story è stata scaricata.',
-    cardLabel: 'LA VOSTRA WILD CARD', collection: 'ENDING SBLOCCATI', routeNote: 'Statistiche calcolate sulle 256 combinazioni possibili. Nessun ranking live.',
+    cardLabel: 'LA VOSTRA WILD CARD', collection: 'ENDING SBLOCCATI',
+    chanceNote: 'Percentuale teorica calcolata sulle 256 combinazioni possibili.',
   },
   'en-US': {
-    loading: 'CALCULATING ENDING…', kicker: '4 SECRET MOVES · 1 OUTCOME',
-    title: <>THE HEIST<br /><em>IS OVER.</em></>,
-    intro: 'The four decisions have been combined. Your ending is ready and no individual choice will be revealed.',
-    reveal: 'REVEAL THE ENDING', hidden: 'YOUR RESULT BECOMES A SHAREABLE AI WILD CARD',
-    creating: 'FORGING YOUR WILD CARD…', creatingBody: 'FOURGE is turning the four crew photos and your ending into one cinematic poster.',
+    loading: 'CALCULATING ENDING...',
+    outcomeEyebrow: 'YOUR CREW\'S OUTCOME',
+    outcomeIntro: 'The four secret choices have been combined. This is what happened to your heist.',
+    chanceLabel: 'ONLY', chanceSuffix: 'CHANCE', chanceExplain: 'of the 256 possible combinations leads to this outcome.',
+    sharedResult: 'This outcome belongs to all four members of the crew.',
+    creating: 'FORGING YOUR WILD CARD...', creatingBody: 'Only one Wild Card is generated for the whole crew. As soon as it is ready, everyone sees the same result here.',
     failed: 'The AI Wild Card could not be generated.', retry: 'TRY AGAIN',
-    score: 'FOURGE SCORE', rarer: 'RARER THAN', routes: 'ROUTES LEADING HERE', outcome: 'HEIST OUTCOME',
     share: 'SHARE TO STORIES', save: 'SAVE WILD CARD', regenerate: 'REGENERATE IMAGE', challenge: 'CHALLENGE ANOTHER CREW',
     shareFallback: 'Direct file sharing is not supported by this browser, so the Story image was downloaded instead.',
-    cardLabel: 'YOUR WILD CARD', collection: 'ENDINGS UNLOCKED', routeNote: 'Stats are calculated against all 256 possible routes. No live ranking.',
+    cardLabel: 'YOUR WILD CARD', collection: 'ENDINGS UNLOCKED',
+    chanceNote: 'Theoretical chance based on all 256 possible combinations.',
   },
 } as const
 
@@ -59,7 +61,6 @@ function safeFileName(value: string) {
 export function RevealExperience({ code, token }: { code: string; token: string }) {
   const [data, setData] = useState<RevealData | null>(null)
   const [error, setError] = useState('')
-  const [revealed, setRevealed] = useState(false)
   const [masterUrl, setMasterUrl] = useState('')
   const [storyUrl, setStoryUrl] = useState('')
   const [aiWorking, setAiWorking] = useState(false)
@@ -77,6 +78,8 @@ export function RevealExperience({ code, token }: { code: string; token: string 
     setData(payload)
     if (payload.aiCard?.masterUrl) setMasterUrl(payload.aiCard.masterUrl)
     if (payload.aiCard?.storyUrl) setStoryUrl(payload.aiCard.storyUrl)
+    if (payload.aiCard?.status === 'ready') setAiWorking(false)
+    if (payload.aiCard?.status === 'generating') setAiWorking(true)
     return payload as RevealData
   }, [code, token])
 
@@ -93,23 +96,43 @@ export function RevealExperience({ code, token }: { code: string; token: string 
     try {
       const response = await fetch(`/api/crews/${code}/wildcard-scene?token=${encodeURIComponent(token)}${regenerate ? '&regenerate=1' : ''}`, { method: 'POST' })
       const payload = await response.json().catch(() => ({}))
+
+      if (response.status === 202 || payload.status === 'generating') {
+        setAiWorking(true)
+        return
+      }
       if (!response.ok) throw new Error(payload.error || 'Could not generate AI Wild Card.')
-      if (!payload.masterUrl) throw new Error('The AI Wild Card was generated but no image URL was returned.')
+      if (!payload.masterUrl) {
+        setAiWorking(true)
+        return
+      }
       setMasterUrl(payload.masterUrl)
       setStoryUrl(payload.storyUrl || payload.masterUrl)
+      setAiWorking(false)
       await load()
     } catch (cause) {
       setAiError(cause instanceof Error ? cause.message : 'Could not generate AI Wild Card.')
-    } finally {
       setAiWorking(false)
     }
   }, [code, token, load])
 
   useEffect(() => {
-    if (!revealed || !data || masterUrl || aiWorking || autoStarted.current) return
+    if (!data || masterUrl || autoStarted.current) return
+    if (data.aiCard.status === 'generating') {
+      setAiWorking(true)
+      return
+    }
     autoStarted.current = true
     generateAiCard(false)
-  }, [revealed, data, masterUrl, aiWorking, generateAiCard])
+  }, [data, masterUrl, generateAiCard])
+
+  useEffect(() => {
+    if (!data || masterUrl || !(aiWorking || data.aiCard.status === 'generating')) return
+    const timer = window.setInterval(() => {
+      load().catch(() => undefined)
+    }, 2500)
+    return () => window.clearInterval(timer)
+  }, [data, masterUrl, aiWorking, load])
 
   async function getImageFile(url: string, suffix: string) {
     if (!url || !data) throw new Error('Wild Card unavailable')
@@ -132,11 +155,8 @@ export function RevealExperience({ code, token }: { code: string; token: string 
   }
 
   async function downloadCard() {
-    try {
-      await downloadUrl(masterUrl, 'wild-card')
-    } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : 'Could not save Wild Card.')
-    }
+    try { await downloadUrl(masterUrl, 'wild-card') }
+    catch (cause) { setNotice(cause instanceof Error ? cause.message : 'Could not save Wild Card.') }
   }
 
   async function shareCard() {
@@ -146,7 +166,7 @@ export function RevealExperience({ code, token }: { code: string; token: string 
       const shareUrl = storyUrl || masterUrl
       const file = await getImageFile(shareUrl, 'story')
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: `FOURGE · ${data.ending.name}` })
+        await navigator.share({ files: [file], title: `FOURGE - ${data.ending.name}` })
         return
       }
       await downloadUrl(shareUrl, 'story')
@@ -160,14 +180,14 @@ export function RevealExperience({ code, token }: { code: string; token: string 
   async function challengeCrew() {
     if (!data) return
     const text = locale === 'it-IT'
-      ? `La mia crew ha ottenuto ${data.ending.name} su FOURGE · THE HEIST. Riuscite a trovare una route più rara?`
-      : `My crew forged ${data.ending.name} on FOURGE · THE HEIST. Can your crew find a rarer route?`
+      ? `La mia crew ha ottenuto ${data.ending.name} su FOURGE - THE HEIST. Solo ${data.ending.probability} di possibilita. Riuscite a fare meglio?`
+      : `My crew forged ${data.ending.name} on FOURGE - THE HEIST. Only ${data.ending.probability} chance. Can your crew beat it?`
     const url = `${window.location.origin}/create`
     try {
-      if (navigator.share) await navigator.share({ title: 'FOURGE · CHALLENGE', text, url })
+      if (navigator.share) await navigator.share({ title: 'FOURGE - CHALLENGE', text, url })
       else {
         await navigator.clipboard.writeText(`${text}\n${url}`)
-        setNotice(locale === 'it-IT' ? 'LINK SFIDA COPIATO ✓' : 'CHALLENGE LINK COPIED ✓')
+        setNotice(locale === 'it-IT' ? 'LINK SFIDA COPIATO' : 'CHALLENGE LINK COPIED')
       }
     } catch { /* user cancelled */ }
   }
@@ -175,19 +195,26 @@ export function RevealExperience({ code, token }: { code: string; token: string 
   if (error) return <div className="room-error reveal-error">{error}</div>
   if (!data) return <div className="reveal-loading"><span>FOURGE.</span><strong>{t.loading}</strong></div>
 
-  if (!revealed) {
-    return <section className="reveal-gate reveal-gate-final">
-      <div className="eyebrow">CREW {data.crew.code} · DROP #{dropIndex}</div>
-      <span className="reveal-kicker">{t.kicker}</span>
-      <h1>{t.title}</h1>
-      <p>{t.intro}</p>
-      <button className="primary-button reveal-now" onClick={() => setRevealed(true)}>{t.reveal}<span>↗</span></button>
-      <small>{t.hidden}</small>
-    </section>
-  }
-
-  return <section className="reveal-stage reveal-stage-final">
+  return <section className="reveal-stage reveal-stage-final reveal-stage-prelaunch">
     <div className="result-mark" aria-label="FOURGE"><span>FOURGE</span><b>.</b></div>
+
+    <section className="outcome-hero">
+      <div className="eyebrow">CREW {data.crew.code} - DROP #{dropIndex}</div>
+      <small>{t.outcomeEyebrow}</small>
+      <h1>{data.ending.name}</h1>
+      <div className={`ending-rarity-line rarity-${data.ending.rarity}`}><i />{data.ending.rarityLabel} ENDING</div>
+      <p className="outcome-intro">{t.outcomeIntro}</p>
+      <p className="outcome-story">{data.ending.description}</p>
+
+      <div className={`chance-hero rarity-${data.ending.rarity}`}>
+        <span>{t.chanceLabel}</span>
+        <strong>{data.ending.probability}</strong>
+        <b>{t.chanceSuffix}</b>
+        <small>{t.chanceExplain}</small>
+      </div>
+      <p className="shared-outcome-note">{t.sharedResult}</p>
+    </section>
+
     <div className="result-overline"><span>{t.cardLabel}</span><i /><span>DROP #{dropIndex}</span></div>
 
     <div className={`story-card-shell master-card-shell rarity-${data.ending.rarity}`}>
@@ -209,32 +236,19 @@ export function RevealExperience({ code, token }: { code: string; token: string 
     </div> : null}
     {notice ? <div className="share-notice">{notice}</div> : null}
 
-    <section className="result-details result-details-v0">
+    <section className="result-details result-details-v0 result-details-simple">
       <div className="result-details-head">
         <div><small>{t.collection}</small><strong>{data.collection.discovered}/{data.collection.total}</strong></div>
-        <div className={`rarity-pill rarity-${data.ending.rarity}`}><i />{data.ending.rarityLabel} · {data.ending.probability}</div>
-      </div>
-
-      <div className="result-metrics result-metrics-v0">
-        <article><small>{t.score}</small><strong>{data.competition.score.toLocaleString('en-US')}</strong></article>
-        <article><small>{t.rarer}</small><strong>{data.ending.rarerThan}</strong></article>
-        <article><small>{t.routes}</small><strong>{data.ending.theoreticalCount}<span>/256</span></strong></article>
-      </div>
-
-      <div className="outcome-copy">
-        <small>{t.outcome}</small>
-        <h2>{data.ending.name}</h2>
-        <p>{data.ending.description}</p>
       </div>
 
       <div className="crew-signature">
         {data.players.map((player) => <span key={player.slot}><b>{player.name}</b><small>{player.roleLabel.replace('THE ', '')}</small></span>)}
       </div>
-      <p className="route-note">{t.routeNote}</p>
+      <p className="route-note">{t.chanceNote}</p>
     </section>
 
     <div className="post-reveal-actions">
-      <button className="secondary-button" disabled={aiWorking} onClick={() => generateAiCard(true)}>{aiWorking ? t.creating : t.regenerate}</button>
+      <button className="secondary-button" disabled={aiWorking} onClick={() => { autoStarted.current = true; generateAiCard(true) }}>{aiWorking ? t.creating : t.regenerate}</button>
       <button className="secondary-button" onClick={challengeCrew}>{t.challenge}</button>
     </div>
   </section>

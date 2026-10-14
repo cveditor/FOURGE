@@ -19,6 +19,10 @@ const COPY = {
     youCreator: 'TU · CREATOR', player: 'GIOCATORE', playerName: 'Player', readyState: '✓ PRONTO', preparing: '◌ IN PREPARAZIONE', roleChoice: 'SCELTA RUOLO', openSpot: 'POSTO LIBERO', waitingFriend: 'In attesa di un amico…', waiting: '○ IN ATTESA',
     outcome: '4 SCELTE SEGRETE BLOCCATE · FINALE PRONTO', reveal: 'RIVELA IL FINALE', secretTitle: 'NESSUNO VEDE LE SCELTE DEGLI ALTRI.', secretBody: 'Il finale si sblocca solo quando tutti e quattro i giocatori sono pronti.',
     shareText: 'Entra nella mia crew FOURGE. 4 amici. 4 scelte segrete. 1 finale.',
+    choicesLocked: 'SCELTE BLOCCATE', waitingForCrew: 'LA CREW STA PRENDENDO FORMA', waitingForOne: 'MANCA SOLO UNA MOSSA', allLocked: 'TUTTE LE MOSSE SONO BLOCCATE',
+    waitingExplain: 'Ogni giocatore completa la propria scelta in segreto. Quando arriviamo a 4/4, il finale della crew si sblocca per tutti.',
+    oneLeftExplain: 'Un solo membro deve ancora bloccare la sua scelta. Subito dopo il finale sarà pronto per tutta la crew.',
+    allLockedExplain: 'Il colpo è deciso. Il risultato appartiene a tutta la crew.',
   },
   'en-US': {
     error: 'Could not load crew', loading: 'OPENING WAITING ROOM…', active: 'ROOM ACTIVE', ready: 'READY', share: 'SHARE CREW', shared: 'SHARED ✓', copied: 'LINK COPIED ✓',
@@ -28,6 +32,10 @@ const COPY = {
     youCreator: 'YOU · CREATOR', player: 'PLAYER', playerName: 'Player', readyState: '✓ READY', preparing: '◌ SETTING UP', roleChoice: 'CHOOSE ROLE', openSpot: 'OPEN SPOT', waitingFriend: 'Waiting for a friend…', waiting: '○ WAITING',
     outcome: '4 SECRET CHOICES LOCKED · ENDING READY', reveal: 'REVEAL THE ENDING', secretTitle: 'NOBODY SEES THE OTHERS’ CHOICES.', secretBody: 'The ending unlocks only when all four players are ready.',
     shareText: 'Join my FOURGE crew. 4 friends. 4 secret choices. 1 outcome.',
+    choicesLocked: 'CHOICES LOCKED', waitingForCrew: 'THE CREW IS TAKING SHAPE', waitingForOne: 'ONE MOVE LEFT', allLocked: 'ALL MOVES ARE LOCKED',
+    waitingExplain: 'Each player completes one secret choice. When the crew reaches 4/4, the ending unlocks for everyone.',
+    oneLeftExplain: 'Only one crew member still has to lock their move. Then the ending will be ready for the whole crew.',
+    allLockedExplain: 'The heist is decided. The outcome belongs to the whole crew.',
   },
 } as const
 
@@ -54,6 +62,14 @@ export function CrewRoom({ code, token }: { code: string; token: string }) {
 
   useEffect(() => { if (!shareState && data) setShareState(COPY[data.crew.locale === 'it-IT' ? 'it-IT' : 'en-US'].share) }, [data, shareState])
 
+  useEffect(() => {
+    if (!data || data.crew.status !== 'ready') return
+    const timer = window.setTimeout(() => {
+      window.location.replace(`/crew/${code}/reveal?token=${encodeURIComponent(token)}`)
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [data, code, token])
+
   async function shareCrew() {
     if (!data || data.full) return
     try {
@@ -76,6 +92,12 @@ export function CrewRoom({ code, token }: { code: string; token: string }) {
     <div className="room-topline"><span>CREW / {data.crew.code}</span><span className="pulse-label"><i /> {t.active}</span></div>
     <div className="room-heading"><div><small>DROP #01</small><h1>{data.crew.dropTitle}</h1></div><div className="progress-orb"><strong>{data.readyCount}</strong><span>/4 {t.ready}</span></div></div>
     <div className="progress-track"><span style={{ width: `${(data.readyCount / 4) * 100}%` }} /></div>
+
+    <div className={`room-live-status ${data.readyCount === 4 ? 'is-ready' : data.readyCount === 3 ? 'is-close' : ''}`}>
+      <small>{data.readyCount === 4 ? t.allLocked : data.readyCount === 3 ? t.waitingForOne : t.waitingForCrew}</small>
+      <strong><b>{data.readyCount}</b><span>/4</span> {t.choicesLocked}</strong>
+      <p>{data.readyCount === 4 ? t.allLockedExplain : data.readyCount === 3 ? t.oneLeftExplain : t.waitingExplain}</p>
+    </div>
 
     <div className={`shared-invite-box ${data.full ? 'share-locked' : ''}`}><div><small>{data.full ? t.fullClosed : t.open}</small><strong>{data.full ? t.fullStrong : t.openStrong}</strong><p>{data.full ? t.fullBody : t.openBody}</p></div>
       <div className="share-actions"><button className="primary-button share-main" onClick={shareCrew} disabled={data.full}>{data.full ? t.fullButton : (shareState || t.share)} <span>{data.full ? '■' : '↗'}</span></button><button className="copy-link-button" onClick={copyLink} disabled={data.full}>{data.full ? t.locked : t.copy}</button></div>

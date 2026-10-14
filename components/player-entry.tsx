@@ -48,6 +48,14 @@ export function PlayerEntry({ token }: { token: string }) {
     return () => URL.revokeObjectURL(url)
   }, [photo])
 
+  useEffect(() => {
+    if (!data?.crew.outcomeReady) return
+    const timer = window.setTimeout(() => {
+      window.location.replace(`/crew/${data.crew.code}/reveal?token=${encodeURIComponent(token)}`)
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [data?.crew.outcomeReady, data?.crew.code, token])
+
   const roleStory = useMemo(() => data?.me.role ? roleStories[data.me.role] || null : null, [data?.me.role, roleStories])
   const roleLabel = roleStory?.label || data?.me.role || ''
 
@@ -158,11 +166,18 @@ export function PlayerEntry({ token }: { token: string }) {
   return <div className="join-panel ready-panel">
     <div className="setup-step">{t.ready}</div><div className="eyebrow">CREW {data.crew.code} · THE HEIST</div><h1>{t.moveLocked}</h1>
     <div className="ready-identity"><small>{roleLabel}</small><strong>{data.me.name}</strong><span>{t.photoChoiceDone}</span></div>
-    <div className="waiting-progress"><strong>{data.crew.readyCount}/4</strong><span>{t.playersReady}</span></div><p className="ready-story-note">{t.readyNote}</p>
+    <div className={`player-waiting-hero ${data.crew.readyCount === 4 ? 'is-ready' : data.crew.readyCount === 3 ? 'is-close' : ''}`}>
+      <small>{data.crew.readyCount === 4 ? (locale === 'it-IT' ? 'IL FINALE È PRONTO' : 'THE ENDING IS READY') : data.crew.readyCount === 3 ? (locale === 'it-IT' ? 'MANCA SOLO UNA MOSSA' : 'ONE MOVE LEFT') : (locale === 'it-IT' ? 'ASPETTANDO LA CREW' : 'WAITING FOR THE CREW')}</small>
+      <strong><b>{data.crew.readyCount}</b><span>/4</span></strong>
+      <p>{data.crew.readyCount === 4 ? (locale === 'it-IT' ? 'Tutte le scelte segrete sono bloccate. Il risultato è lo stesso per tutti e quattro.' : 'All secret choices are locked. The whole crew shares the same outcome.') : (locale === 'it-IT' ? 'La tua mossa è al sicuro. Quando tutti arrivano a 4/4, FOURGE combina le quattro scelte e sblocca un unico finale per tutta la crew.' : 'Your move is locked. At 4/4, FOURGE combines all four secret choices and unlocks one shared ending for the whole crew.')}</p>
+    </div>
     {data.me.isCreator && data.creatorRoomUrl ? <a className="primary-button full-button" href={data.creatorRoomUrl}>{t.enterRoom} <span>↗</span></a> : null}
-    <div className="join-waiting role-waiting"><div className="form-header"><span>{t.crewStatus}</span><strong>{data.crew.memberCount}/4 {t.present}</strong></div>
-      {data.players.map((player) => <div className="join-player" key={player.slot}><span>{player.display_name || `${t.player} ${player.slot}`}</span><b>{player.state === 'complete' ? t.ready : t.preparing}</b></div>)}
-      {Array.from({ length: Math.max(0, 4 - data.crew.memberCount) }).map((_, index) => <div className="join-player open-slot" key={`waiting-${index}`}><span>{t.waitingSpot}</span><b>{t.waiting}</b></div>)}
+    <div className="mobile-crew-roster">
+      <div className="mobile-crew-roster-head"><span>{t.crewStatus}</span><strong>{data.crew.memberCount}/4 {t.present}</strong></div>
+      <div className="mobile-crew-grid">
+        {data.players.map((player) => { const complete = player.state === 'complete'; const displayName = player.display_name || `${t.player} ${player.slot}`; return <div className={`mobile-crew-member ${complete ? 'is-ready' : ''}`} key={player.slot}><div className="mobile-crew-avatar">{displayName.slice(0,1).toUpperCase()}</div><div><small>{complete ? t.ready : t.preparing}</small><strong>{displayName}</strong></div></div> })}
+        {Array.from({ length: Math.max(0, 4 - data.crew.memberCount) }).map((_, index) => <div className="mobile-crew-member is-empty" key={`waiting-${index}`}><div className="mobile-crew-avatar">?</div><div><small>{t.waiting}</small><strong>{t.waitingSpot}</strong></div></div>)}
+      </div>
     </div>
     {data.crew.outcomeReady ? <div className="outcome-ready-wrap"><div className="outcome-ready-banner">{t.outcomeReady}</div><a className="primary-button full-button" href={`/crew/${data.crew.code}/reveal?token=${encodeURIComponent(token)}`}>{t.reveal} <span>↗</span></a></div> : null}
   </div>
